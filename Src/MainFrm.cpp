@@ -434,7 +434,20 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	m_wndMDIClient.SubclassWindow(m_hWndMDIClient);
 
 	if (IsWin10_OrGreater())
+	{
 		m_bTabsOnTitleBar = GetOptionsMgr()->GetBool(OPT_TABBAR_ON_TITLEBAR);
+#if defined(USE_DARKMODELIB)
+		DarkMode::setDarkMode(DarkMode::isDarkModeReg() ? 1 : 3);
+		DarkMode::initDarkMode(MERGE_INI_NAME);
+
+		HWND hSelf = GetSafeHwnd();
+		if (hSelf != nullptr)
+		{
+			DarkMode::setDarkTitleBarEx(hSelf, true);
+			DarkMode::setWindowNotifyCustomDrawSubclass(hSelf, true);
+		}
+#endif
+	}
 
 	m_wndTabBar.Update(m_bTabsOnTitleBar.value_or(false), false);
 
@@ -449,7 +462,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 		TRACE0("Failed to create toolbar\n");
 		return -1;      // fail to create
 	}
-	
+
 	if (!m_bTabsOnTitleBar.value_or(false) && !m_wndTabBar.Create(this))
 	{
 		TRACE0("Failed to create tab bar\n");
@@ -2704,7 +2717,13 @@ BOOL CMainFrame::CreateToolbar()
 	}
 
 	m_wndReBar.LoadStateFromString(GetOptionsMgr()->GetString(OPT_REBAR_STATE).c_str());
-
+#if defined(USE_DARKMODELIB)
+	HWND hTip = m_wndToolBar.GetToolBarCtrl().GetToolTips()->GetSafeHwnd();
+	if (hTip != nullptr)
+	{
+		DarkMode::setDarkTooltips(hTip);
+	}
+#endif
 	return TRUE;
 }
 
