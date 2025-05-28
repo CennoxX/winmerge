@@ -2742,7 +2742,7 @@ namespace DarkMode
 
 		HBRUSH hSelectedBrush = isDisabled ? DarkMode::getDlgBackgroundBrush() : (isHot ? DarkMode::getHotBackgroundBrush() : DarkMode::getCtrlBackgroundBrush());
 
-		// CBS_DROPDOWN text is handled by parent by WM_CTLCOLOREDIT
+		// CBS_DROPDOWN and CBS_SIMPLE text is handled by parent by WM_CTLCOLOREDIT
 		if (comboboxData._cbStyle == CBS_DROPDOWNLIST)
 		{
 			// erase background on item change
@@ -2781,7 +2781,7 @@ namespace DarkMode
 				::DrawFocusRect(hdc, &cbi.rcItem);
 			}
 		}
-		else if (comboboxData._cbStyle == CBS_DROPDOWN && cbi.hwndItem != nullptr)
+		else if (cbi.hwndItem != nullptr)
 		{
 			hasFocus = ::GetFocus() == cbi.hwndItem;
 
@@ -2810,22 +2810,35 @@ namespace DarkMode
 		{
 			::ExcludeClipRect(hdc, rcClient.left + 1, rcClient.top + 1, rcClient.right - 1, rcClient.bottom - 1);
 		}
-		else if (comboboxData._cbStyle == CBS_DROPDOWN)
+		else
 		{
-			POINT edge[]{
-				{rcArrow.left - 1, rcArrow.top},
-				{rcArrow.left - 1, rcArrow.bottom}
-			};
-
-			::Polyline(hdc, edge, _countof(edge));
-
 			::ExcludeClipRect(hdc, cbi.rcItem.left, cbi.rcItem.top, cbi.rcItem.right, cbi.rcItem.bottom);
-			::ExcludeClipRect(hdc, rcArrow.left - 1, rcArrow.top, rcArrow.right, rcArrow.bottom);
+
+			if (comboboxData._cbStyle == CBS_SIMPLE && cbi.hwndList != nullptr)
+			{
+				RECT rcList{};
+				::GetClientRect(cbi.hwndList, &rcList);
+				rcClient.bottom -= rcList.bottom - rcList.top - 1;
+			}
 
 			HPEN hPen = ::CreatePen(PS_SOLID, 1, isDisabled ? DarkMode::getDlgBackgroundColor() : DarkMode::getBackgroundColor());
 			RECT rcInner{ rcClient };
 			::InflateRect(&rcInner, -1, -1);
-			rcInner.right = rcArrow.left - 1;
+
+			if (comboboxData._cbStyle == CBS_DROPDOWN)
+			{
+				POINT edge[]{
+					{rcArrow.left - 1, rcArrow.top},
+					{rcArrow.left - 1, rcArrow.bottom}
+				};
+
+				::Polyline(hdc, edge, _countof(edge));
+
+				::ExcludeClipRect(hdc, rcArrow.left - 1, rcArrow.top, rcArrow.right, rcArrow.bottom);
+
+				rcInner.right = rcArrow.left - 1;
+			}
+
 			DarkMode::paintRoundFrameRect(hdc, rcInner, hPen);
 			::DeleteObject(hPen);
 			::InflateRect(&rcInner, -1, -1);
@@ -2974,14 +2987,21 @@ namespace DarkMode
 	{
 		const auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
 
-		if ((nStyle & CBS_DROPDOWNLIST) == CBS_DROPDOWNLIST || (nStyle & CBS_DROPDOWN) == CBS_DROPDOWN)
+		if ((nStyle & CBS_DROPDOWNLIST) == CBS_DROPDOWNLIST
+			|| (nStyle & CBS_DROPDOWN) == CBS_DROPDOWN
+			|| (nStyle & CBS_SIMPLE) == CBS_SIMPLE)
 		{
 			COMBOBOXINFO cbi{};
 			cbi.cbSize = sizeof(COMBOBOXINFO);
 			if (::GetComboBoxInfo(hWnd, &cbi) == TRUE)
 			{
-				if (p._theme && cbi.hwndList)
+				if (p._theme && cbi.hwndList != nullptr)
 				{
+					if ((nStyle & CBS_SIMPLE) == CBS_SIMPLE)
+					{
+						DarkMode::replaceClientEdgeWithBorderSafe(cbi.hwndList);
+					}
+
 					//dark scrollbar for listbox of combobox
 					::SetWindowTheme(cbi.hwndList, p._themeClassName, nullptr);
 				}
@@ -4593,7 +4613,7 @@ namespace DarkMode
 	static LRESULT darkListViewNotifyCustomDraw(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
 		auto* lplvcd = reinterpret_cast<LPNMLVCUSTOMDRAW>(lParam);
-		HWND& hList = lplvcd->nmcd.hdr.hwndFrom;
+		const auto& hList = lplvcd->nmcd.hdr.hwndFrom;
 		const auto lvStyle = ::GetWindowLongPtr(hList, GWL_STYLE) & LVS_TYPEMASK;
 		const bool isReport = (lvStyle == LVS_REPORT);
 		bool hasGridlines = false;
@@ -5524,6 +5544,20 @@ namespace DarkMode
 			DarkMode::redrawWindowFrame(hWnd);
 	}
 
+	void replaceExEdgeWithBorder(HWND hWnd, bool replace, LONG_PTR exStyleFlag)
+	{
+		DarkMode::setWindowExStyle(hWnd, !replace, exStyleFlag);
+		DarkMode::setWindowStyle(hWnd, replace, WS_BORDER);
+	}
+
+	void replaceClientEdgeWithBorderSafe(HWND hWnd)
+	{
+		if (hWnd != nullptr)
+		{
+			DarkMode::replaceExEdgeWithBorder(hWnd, DarkMode::isEnabled(), WS_EX_CLIENTEDGE);
+		}
+	}
+
 	void setProgressBarClassicTheme(HWND hWnd)
 	{
 		DarkMode::setWindowStyle(hWnd, DarkMode::isEnabled(), WS_DLGFRAME);
@@ -5634,6 +5668,19 @@ namespace DarkMode
 			return DarkMode::onCtlColorDlg(hdc);
 		}
 		return DarkMode::onCtlColor(hdc);
+	}
+
+	UINT_PTR CALLBACK HookDlgProc(HWND hWnd, UINT uMsg, WPARAM /*wParam*/, LPARAM /*lParam*/)
+	{
+		switch (uMsg)
+		{
+			case WM_INITDIALOG:
+			{
+				DarkMode::setDarkDlgSafe(hWnd);
+				return TRUE;
+			}
+		}
+		return FALSE;
 	}
 } // namespace DarkMode
 

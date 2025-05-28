@@ -14,6 +14,7 @@
 #include "ColorSchemes.h"
 #include "IniOptionsMgr.h"
 #include "Merge.h"
+#include "MergeDarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -147,6 +148,14 @@ BOOL PropSysColors::OnInitDialog()
 
 	OnCbnSelchangeSysColorName();
 	UpdateControls();
+
+#if defined(USE_DARKMODELIB)
+	HWND hBtn = m_btnSysColor.GetSafeHwnd();
+	if (hBtn != nullptr)
+	{
+		DarkMode::setWindowExStyle(hBtn, !DarkMode::isEnabled(), WS_EX_CLIENTEDGE);
+	}
+#endif
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 }

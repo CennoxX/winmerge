@@ -310,6 +310,8 @@ namespace DarkMode
 	inline void redrawWindowFrame(HWND hWnd);
 	void setWindowStyle(HWND hWnd, bool setStyle, LONG_PTR styleFlag);
 	void setWindowExStyle(HWND hWnd, bool setExStyle, LONG_PTR exStyleFlag);
+	void replaceExEdgeWithBorder(HWND hWnd, bool replace, LONG_PTR exStyleFlag);
+	void replaceClientEdgeWithBorderSafe(HWND hWnd);
 	void setProgressBarClassicTheme(HWND hWnd);
 
 	// ctl color
@@ -321,6 +323,11 @@ namespace DarkMode
 	LRESULT onCtlColorDlgStaticText(HDC hdc, bool isTextEnabled);
 	LRESULT onCtlColorDlgLinkText(HDC hdc, bool isTextEnabled = true);
 	LRESULT onCtlColorListbox(WPARAM wParam, LPARAM lParam);
+
+	// hook callback dialog procedure for font, color chooser,... dialogs
+
+	UINT_PTR CALLBACK HookDlgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
 } // namespace DarkMode
 
 #else

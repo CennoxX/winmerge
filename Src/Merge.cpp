@@ -415,6 +415,13 @@ BOOL CMergeApp::InitInstance()
 	strdiff::Init(); // String diff init
 	strdiff::SetBreakChars(GetOptionsMgr()->GetString(OPT_BREAK_SEPARATORS).c_str());
 
+#if defined(USE_DARKMODELIB)
+	if (IsWin10_OrGreater())
+	{
+		DarkMode::setDarkMode(DarkMode::isDarkModeReg() ? 1 : 3);
+		DarkMode::initDarkMode(MERGE_INI_NAME);
+	}
+#endif
 	if (IsWin11_OrGreater())
 		BCMenu::DisableOwnerDraw();
 

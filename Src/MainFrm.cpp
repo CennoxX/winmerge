@@ -437,9 +437,6 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	{
 		m_bTabsOnTitleBar = GetOptionsMgr()->GetBool(OPT_TABBAR_ON_TITLEBAR);
 #if defined(USE_DARKMODELIB)
-		DarkMode::setDarkMode(DarkMode::isDarkModeReg() ? 1 : 3);
-		DarkMode::initDarkMode(MERGE_INI_NAME);
-
 		HWND hSelf = GetSafeHwnd();
 		if (hSelf != nullptr)
 		{
@@ -1590,6 +1587,11 @@ void CMainFrame::OnViewSelectfont()
 
 	cf.lpLogFont = lf;
 	cf.hwndOwner = m_hWnd;
+
+#if defined(USE_DARKMODELIB)
+	cf.Flags |= CF_ENABLEHOOK;
+	cf.lpfnHook = static_cast<LPCFHOOKPROC>(DarkMode::HookDlgProc);
+#endif
 
 	if (ChooseFont(&cf))
 	{
