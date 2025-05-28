@@ -22,6 +22,7 @@
 #endif
 
 constexpr auto MERGE_INI_NAME = L"winMergeDark"; // replace with L"" to disable ini config
+constexpr DWORD CC_FLAGS_DARK = CC_RGBINIT | CC_FULLOPEN | CC_ENABLEHOOK;
 
 namespace ATL
 {

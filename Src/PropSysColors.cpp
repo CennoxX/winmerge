@@ -83,7 +83,10 @@ void PropSysColors::WriteOptions()
 void PropSysColors::BrowseColor(CColorButton & colorButton)
 {
 	CColorDialog dialog(colorButton.GetColor());
-	
+#if defined(USE_DARKMODELIB)
+	dialog.m_cc.Flags |= CC_FLAGS_DARK;
+	dialog.m_cc.lpfnHook = static_cast<LPCCHOOKPROC>(DarkMode::HookDlgProc);
+#endif
 	if (dialog.DoModal() == IDOK)
 	{
 		colorButton.SetColor(dialog.GetColor());
