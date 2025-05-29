@@ -2139,8 +2139,11 @@ void CImgMergeFrame::OnImgUseBackColor()
 		RGBQUAD backColor = m_pImgMergeWindow->GetBackColor();
 		CColorDialog dialog(RGB(backColor.rgbRed, backColor.rgbGreen, backColor.rgbBlue));
 #if defined(USE_DARKMODELIB)
-		dialog.m_cc.Flags |= CC_FLAGS_DARK;
-		dialog.m_cc.lpfnHook = static_cast<LPCCHOOKPROC>(DarkMode::HookDlgProc);
+		if (DarkMode::isEnabled())
+		{
+			dialog.m_cc.Flags |= CC_FLAGS_DARK;
+			dialog.m_cc.lpfnHook = static_cast<LPCCHOOKPROC>(DarkMode::HookDlgProc);
+		}
 #endif
 		static DWORD dwCustColors[16];
 		Options::CustomColors::Load(GetOptionsMgr(), dwCustColors);

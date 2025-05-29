@@ -2816,9 +2816,9 @@ namespace DarkMode
 
 			if (comboboxData._cbStyle == CBS_SIMPLE && cbi.hwndList != nullptr)
 			{
-				RECT rcList{};
-				::GetClientRect(cbi.hwndList, &rcList);
-				rcClient.bottom -= rcList.bottom - rcList.top - 1;
+				RECT rcItem{ cbi.rcItem };
+				::MapWindowPoints(cbi.hwndItem, hWnd, reinterpret_cast<LPPOINT>(&rcItem), 2);
+				rcClient.bottom = rcItem.bottom;
 			}
 
 			HPEN hPen = ::CreatePen(PS_SOLID, 1, isDisabled ? DarkMode::getDlgBackgroundColor() : DarkMode::getBackgroundColor());
