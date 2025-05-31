@@ -21,6 +21,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories>..\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
+      <TreatAngleIncludeAsExternal>true</TreatAngleIncludeAsExternal>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

@@ -53,13 +53,8 @@
 #include "Version.h"
 
 #ifdef __GNUC__
-#define WINAPI_LAMBDA WINAPI
-#ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
-#endif
 constexpr int CP_DROPDOWNITEM = 9; // for some reason mingw use only enum up to 8
-#else
-#define WINAPI_LAMBDA
 #endif
 
 #ifndef WM_DPICHANGED
@@ -98,7 +93,7 @@ static constexpr COLORREF HEXRGB(DWORD rrggbb)
 static std::wstring getWndClassName(HWND hWnd)
 {
 	constexpr int strLen = 32;
-	std::wstring className(strLen, 0);
+	std::wstring className(strLen, L'\0');
 	className.resize(static_cast<size_t>(::GetClassNameW(hWnd, className.data(), strLen)));
 	return className;
 }
@@ -1117,7 +1112,7 @@ namespace DarkMode
 		LPCWSTR lpSubKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
 		LPCWSTR lpValue = L"AppsUseLightTheme";
 
-		auto result = ::RegGetValueW(HKEY_CURRENT_USER, lpSubKey, lpValue, RRF_RT_REG_DWORD, nullptr, &data, &dwBufSize);
+		const auto result = ::RegGetValueW(HKEY_CURRENT_USER, lpSubKey, lpValue, RRF_RT_REG_DWORD, nullptr, &data, &dwBufSize);
 		if (result != ERROR_SUCCESS)
 		{
 			return false;
@@ -1489,7 +1484,8 @@ namespace DarkMode
 		const auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
 		const auto nBtnStyle = nStyle & BS_TYPEMASK;
 
-		int iPartID = BP_CHECKBOX;
+		int iPartID = 0;
+		int iStateID = 0;
 
 		switch (nBtnStyle)
 		{
@@ -1499,6 +1495,15 @@ namespace DarkMode
 			case BS_AUTO3STATE:
 			{
 				iPartID = BP_CHECKBOX;
+
+				if (::IsWindowEnabled(hWnd) == FALSE) iStateID = CBS_UNCHECKEDDISABLED;
+				else if ((nState & BST_PUSHED) == BST_PUSHED) iStateID = CBS_UNCHECKEDPRESSED;
+				else if ((nState & BST_HOT) == BST_HOT) iStateID = CBS_UNCHECKEDHOT;
+				else iStateID = CBS_UNCHECKEDNORMAL;
+
+				if ((nState & BST_CHECKED) == BST_CHECKED) iStateID += 4;
+				else if ((nState & BST_INDETERMINATE) == BST_INDETERMINATE) iStateID += 8;
+
 				break;
 			}
 
@@ -1506,24 +1511,25 @@ namespace DarkMode
 			case BS_AUTORADIOBUTTON:
 			{
 				iPartID = BP_RADIOBUTTON;
+
+				if (::IsWindowEnabled(hWnd) == FALSE) iStateID = RBS_UNCHECKEDDISABLED;
+				else if ((nState & BST_PUSHED) == BST_PUSHED) iStateID = RBS_UNCHECKEDPRESSED;
+				else if ((nState & BST_HOT) == BST_HOT) iStateID = RBS_UNCHECKEDHOT;
+				else iStateID = RBS_UNCHECKEDNORMAL;
+
+				if ((nState & BST_CHECKED) == BST_CHECKED) iStateID += 4;
+
 				break;
 			}
 
-			default:
+			default: // should never happen
 			{
+				iPartID = BP_CHECKBOX;
+				iStateID = CBS_UNCHECKEDDISABLED;
 				// assert(false);
 				break;
 			}
 		}
-
-		// states of BP_CHECKBOX and BP_RADIOBUTTON are the same
-		int iStateID = RBS_UNCHECKEDNORMAL;
-
-		if (::IsWindowEnabled(hWnd) == FALSE)           iStateID = RBS_UNCHECKEDDISABLED;
-		else if ((nState & BST_PUSHED) == BST_PUSHED)   iStateID = RBS_UNCHECKEDPRESSED;
-		else if ((nState & BST_HOT) == BST_HOT)         iStateID = RBS_UNCHECKEDHOT;
-
-		if ((nState & BST_CHECKED) == BST_CHECKED)      iStateID += 4;
 
 		if (::BufferedPaintRenderAnimation(hWnd, hdc) == TRUE)
 		{
@@ -2112,7 +2118,7 @@ namespace DarkMode
 
 				if (bufferData.ensureBuffer(hdc, rcClient))
 				{
-					int savedState = ::SaveDC(hMemDC);
+					const int savedState = ::SaveDC(hMemDC);
 					::IntersectClipRect(
 						hMemDC,
 						ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right, ps.rcPaint.bottom
@@ -2365,7 +2371,7 @@ namespace DarkMode
 				}
 
 				PAINTSTRUCT ps{};
-				auto hdc = ::BeginPaint(hWnd, &ps);
+				HDC hdc = ::BeginPaint(hWnd, &ps);
 
 				if (ps.rcPaint.right <= ps.rcPaint.left || ps.rcPaint.bottom <= ps.rcPaint.top)
 				{
@@ -2378,7 +2384,7 @@ namespace DarkMode
 
 				if (pTabBufferData->ensureBuffer(hdc, rcClient))
 				{
-					int savedState = ::SaveDC(hMemDC);
+					const int savedState = ::SaveDC(hMemDC);
 					::IntersectClipRect(
 						hMemDC,
 						ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right, ps.rcPaint.bottom
@@ -2831,7 +2837,6 @@ namespace DarkMode
 					{rcArrow.left - 1, rcArrow.top},
 					{rcArrow.left - 1, rcArrow.bottom}
 				};
-
 				::Polyline(hdc, edge, _countof(edge));
 
 				::ExcludeClipRect(hdc, rcArrow.left - 1, rcArrow.top, rcArrow.right, rcArrow.bottom);
@@ -2899,7 +2904,7 @@ namespace DarkMode
 				}
 
 				PAINTSTRUCT ps{};
-				auto hdc = ::BeginPaint(hWnd, &ps);
+				HDC hdc = ::BeginPaint(hWnd, &ps);
 
 				if (pComboboxData->_cbStyle != CBS_DROPDOWN)
 				{
@@ -2914,7 +2919,7 @@ namespace DarkMode
 
 					if (bufferData.ensureBuffer(hdc, rcClient))
 					{
-						int savedState = ::SaveDC(hMemDC);
+						const int savedState = ::SaveDC(hMemDC);
 						::IntersectClipRect(
 							hMemDC,
 							ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right, ps.rcPaint.bottom
@@ -3227,6 +3232,7 @@ namespace DarkMode
 			ListView_SetBkColor(hWnd, DarkMode::getViewBackgroundColor());
 
 			DarkMode::setDarkListView(hWnd);
+			DarkMode::setDarkListviewCheckboxes(hWnd);
 			DarkMode::setDarkTooltips(hWnd, DarkMode::ToolTipsType::listview);
 		}
 
@@ -3235,8 +3241,8 @@ namespace DarkMode
 			HWND hHeader = ListView_GetHeader(hWnd);
 			DarkMode::setDarkHeader(hHeader);
 
-			const auto nExStyle = ListView_GetExtendedListViewStyle(hWnd);
-			ListView_SetExtendedListViewStyle(hWnd, nExStyle | LVS_EX_DOUBLEBUFFER);
+			const auto lvExStyle = ListView_GetExtendedListViewStyle(hWnd);
+			ListView_SetExtendedListViewStyle(hWnd, lvExStyle | LVS_EX_DOUBLEBUFFER);
 			DarkMode::setListViewCtrlSubclass(hWnd);
 		}
 	}
@@ -3430,7 +3436,7 @@ namespace DarkMode
 				}
 
 				PAINTSTRUCT ps{};
-				auto hdc = ::BeginPaint(hWnd, &ps);
+				HDC hdc = ::BeginPaint(hWnd, &ps);
 
 				if (ps.rcPaint.right <= ps.rcPaint.left || ps.rcPaint.bottom <= ps.rcPaint.top)
 				{
@@ -3443,7 +3449,7 @@ namespace DarkMode
 
 				if (bufferData.ensureBuffer(hdc, rcClient))
 				{
-					int savedState = ::SaveDC(hMemDC);
+					const int savedState = ::SaveDC(hMemDC);
 					::IntersectClipRect(
 						hMemDC,
 						ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right, ps.rcPaint.bottom
@@ -3599,16 +3605,17 @@ namespace DarkMode
 		std::wstring str;
 		RECT rcPart{};
 		RECT rcIntersect{};
+		const int iLastDiv = nParts - (hasSizeGrip ? 1 : 0);
+		const bool drawEdge = (nParts >= 2 || !hasSizeGrip);
 		for (int i = 0; i < nParts; ++i)
 		{
 			::SendMessage(hWnd, SB_GETRECT, static_cast<WPARAM>(i), reinterpret_cast<LPARAM>(&rcPart));
-			if (::IntersectRect(&rcIntersect, &rcPart, &rcClient) == 0)
+			if (::IntersectRect(&rcIntersect, &rcPart, &rcClient) == FALSE)
 			{
 				continue;
 			}
 
-			const int lastDiv = hasSizeGrip ? 1 : 0;
-			if ((i < nParts - lastDiv) && (nParts >= 2 || !hasSizeGrip))
+			if (drawEdge && (i < iLastDiv))
 			{
 				POINT edges[]{
 					{rcPart.right - borders.between, rcPart.top + 1},
@@ -3632,7 +3639,7 @@ namespace DarkMode
 
 			if (ownerDraw)
 			{
-				auto id = static_cast<UINT>(::GetDlgCtrlID(hWnd));
+				const auto id = static_cast<UINT>(::GetDlgCtrlID(hWnd));
 				DRAWITEMSTRUCT dis{
 					0
 					, 0
@@ -3725,7 +3732,7 @@ namespace DarkMode
 				}
 
 				PAINTSTRUCT ps{};
-				auto hdc = ::BeginPaint(hWnd, &ps);
+				HDC hdc = ::BeginPaint(hWnd, &ps);
 
 				if (ps.rcPaint.right <= ps.rcPaint.left || ps.rcPaint.bottom <= ps.rcPaint.top)
 				{
@@ -3738,7 +3745,7 @@ namespace DarkMode
 
 				if (bufferData.ensureBuffer(hdc, rcClient))
 				{
-					int savedState = ::SaveDC(hMemDC);
+					const int savedState = ::SaveDC(hMemDC);
 					::IntersectClipRect(
 						hMemDC,
 						ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right, ps.rcPaint.bottom
@@ -3909,7 +3916,7 @@ namespace DarkMode
 				}
 
 				PAINTSTRUCT ps{};
-				auto hdc = ::BeginPaint(hWnd, &ps);
+				HDC hdc = ::BeginPaint(hWnd, &ps);
 
 				if (ps.rcPaint.right <= ps.rcPaint.left || ps.rcPaint.bottom <= ps.rcPaint.top)
 				{
@@ -3922,7 +3929,7 @@ namespace DarkMode
 
 				if (bufferData.ensureBuffer(hdc, rcClient))
 				{
-					int savedState = ::SaveDC(hMemDC);
+					const int savedState = ::SaveDC(hMemDC);
 					::IntersectClipRect(
 						hMemDC,
 						ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right, ps.rcPaint.bottom
@@ -4123,6 +4130,126 @@ namespace DarkMode
 		}
 	}
 
+	static BOOL CALLBACK DarkEnumChildProc(HWND hWnd, LPARAM lParam)
+	{
+		const auto& p = *reinterpret_cast<DarkModeParams*>(lParam);
+		std::wstring className = getWndClassName(hWnd);
+
+		if (className == WC_BUTTON)
+		{
+			DarkMode::setBtnCtrlSubclassAndTheme(hWnd, p);
+			return TRUE;
+		}
+
+		if (className == WC_STATIC)
+		{
+			DarkMode::setStaticTextCtrlSubclass(hWnd, p);
+			return TRUE;
+		}
+
+		if (className == WC_COMBOBOX)
+		{
+			DarkMode::setComboBoxCtrlSubclassAndTheme(hWnd, p);
+			return TRUE;
+		}
+
+		if (className == WC_EDIT)
+		{
+			DarkMode::setCustomBorderForListBoxOrEditCtrlSubclassAndTheme(hWnd, p, false);
+			return TRUE;
+		}
+
+		if (className == WC_LISTBOX)
+		{
+			DarkMode::setCustomBorderForListBoxOrEditCtrlSubclassAndTheme(hWnd, p, true);
+			return TRUE;
+		}
+
+		if (className == WC_LISTVIEW)
+		{
+			DarkMode::setListViewCtrlSubclassAndTheme(hWnd, p);
+			return TRUE;
+		}
+
+		if (className == WC_TREEVIEW)
+		{
+			DarkMode::setTreeViewCtrlTheme(hWnd, p);
+			return TRUE;
+		}
+
+		if (className == TOOLBARCLASSNAME)
+		{
+			DarkMode::setToolbarCtrlTheme(hWnd, p);
+			return TRUE;
+		}
+
+		if (className == UPDOWN_CLASS)
+		{
+			DarkMode::setUpDownCtrlSubclassAndTheme(hWnd, p);
+			return TRUE;
+		}
+
+		if (className == WC_TABCONTROL)
+		{
+			DarkMode::setTabCtrlSubclassAndTheme(hWnd, p);
+			return TRUE;
+		}
+
+		if (className == STATUSCLASSNAME)
+		{
+			DarkMode::setStatusBarCtrlSubclass(hWnd, p);
+			return TRUE;
+		}
+
+		if (className == WC_SCROLLBAR)
+		{
+			if (p._theme)
+			{
+				DarkMode::setDarkScrollBar(hWnd);
+			}
+			return TRUE;
+		}
+
+		if (className == WC_COMBOBOXEX)
+		{
+			DarkMode::setComboBoxExCtrlSubclass(hWnd, p);
+			return TRUE;
+		}
+
+		if (className == PROGRESS_CLASS)
+		{
+			DarkMode::setProgressBarCtrlSubclass(hWnd, p);
+			return TRUE;
+		}
+
+		if (className == WC_LINK)
+		{
+			DarkMode::enableSysLinkCtrlCtlColor(hWnd, p);
+			return TRUE;
+		}
+
+		if (className == RICHEDIT_CLASS || className == MSFTEDIT_CLASS)
+		{
+			DarkMode::setRichEditCtrlTheme(hWnd, p);
+			return TRUE;
+		}
+
+		/*
+		// for debugging
+		if (className == L"#32770")
+		{
+			return TRUE;
+		}
+
+		if (className == TRACKBAR_CLASS)
+		{
+			return TRUE;
+		}
+		*/
+
+		return TRUE;
+	}
+
 	void setChildCtrlsSubclassAndTheme(HWND hParent, bool subclass, bool theme)
 	{
 		DarkModeParams p{
@@ -4131,129 +4258,16 @@ namespace DarkMode
 			, theme
 		};
 
-		::EnumChildWindows(hParent, [](HWND hWnd, LPARAM lParam) WINAPI_LAMBDA {
-			const auto& p = *reinterpret_cast<DarkModeParams*>(lParam);
-			std::wstring className = getWndClassName(hWnd);
-
-			if (className == WC_BUTTON)
-			{
-				DarkMode::setBtnCtrlSubclassAndTheme(hWnd, p);
-				return TRUE;
-			}
-
-			if (className == WC_STATIC)
-			{
-				DarkMode::setStaticTextCtrlSubclass(hWnd, p);
-				return TRUE;
-			}
-
-			if (className == WC_COMBOBOX)
-			{
-				DarkMode::setComboBoxCtrlSubclassAndTheme(hWnd, p);
-				return TRUE;
-			}
-
-			if (className == WC_EDIT)
-			{
-				DarkMode::setCustomBorderForListBoxOrEditCtrlSubclassAndTheme(hWnd, p, false);
-				return TRUE;
-			}
-
-			if (className == WC_LISTBOX)
-			{
-				DarkMode::setCustomBorderForListBoxOrEditCtrlSubclassAndTheme(hWnd, p, true);
-				return TRUE;
-			}
-
-			if (className == WC_LISTVIEW)
-			{
-				DarkMode::setListViewCtrlSubclassAndTheme(hWnd, p);
-				return TRUE;
-			}
-
-			if (className == WC_TREEVIEW)
-			{
-				DarkMode::setTreeViewCtrlTheme(hWnd, p);
-				return TRUE;
-			}
-
-			if (className == TOOLBARCLASSNAME)
-			{
-				DarkMode::setToolbarCtrlTheme(hWnd, p);
-				return TRUE;
-			}
-
-			if (className == UPDOWN_CLASS)
-			{
-				DarkMode::setUpDownCtrlSubclassAndTheme(hWnd, p);
-				return TRUE;
-			}
-
-			if (className == WC_TABCONTROL)
-			{
-				DarkMode::setTabCtrlSubclassAndTheme(hWnd, p);
-				return TRUE;
-			}
-
-			if (className == STATUSCLASSNAME)
-			{
-				DarkMode::setStatusBarCtrlSubclass(hWnd, p);
-				return TRUE;
-			}
-
-			if (className == WC_SCROLLBAR)
-			{
-				if (p._theme)
-				{
-					DarkMode::setDarkScrollBar(hWnd);
-				}
-				return TRUE;
-			}
-
-			if (className == WC_COMBOBOXEX)
-			{
-				DarkMode::setComboBoxExCtrlSubclass(hWnd, p);
-				return TRUE;
-			}
-
-			if (className == PROGRESS_CLASS)
-			{
-				DarkMode::setProgressBarCtrlSubclass(hWnd, p);
-				return TRUE;
-			}
-
-			if (className == WC_LINK)
-			{
-				DarkMode::enableSysLinkCtrlCtlColor(hWnd, p);
-				return TRUE;
-			}
-
-			if (className == RICHEDIT_CLASS || className == MSFTEDIT_CLASS)
-			{
-				DarkMode::setRichEditCtrlTheme(hWnd, p);
-				return TRUE;
-			}
-
-			/*
-			// for debugging
-			if (className == L"#32770")
-			{
-				return TRUE;
-			}
-
-			if (className == TRACKBAR_CLASS)
-			{
-				return TRUE;
-			}
-			*/
-
-			return TRUE;
-		}, reinterpret_cast<LPARAM>(&p));
+		::EnumChildWindows(hParent, DarkMode::DarkEnumChildProc, reinterpret_cast<LPARAM>(&p));
 	}
 
 	void setChildCtrlsTheme(HWND hParent)
 	{
-		setChildCtrlsSubclassAndTheme(hParent, false, DarkMode::isWindows10());
+#if defined(_DARKMODELIB_ALLOW_OLD_OS)
+		DarkMode::setChildCtrlsSubclassAndTheme(hParent, false, true);
+#else
+		DarkMode::setChildCtrlsSubclassAndTheme(hParent, false, DarkMode::isWindows10());
+#endif
 	}
 
 	constexpr auto g_WindowEraseBgSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::eraseBg);
@@ -4446,10 +4460,10 @@ namespace DarkMode
 				tbi.dwMask = TBIF_IMAGE | TBIF_STYLE;
 				::SendMessage(lptbcd->nmcd.hdr.hwndFrom, TB_GETBUTTONINFO, lptbcd->nmcd.dwItemSpec, reinterpret_cast<LPARAM>(&tbi));
 				const bool isIcon = tbi.iImage != I_IMAGENONE;
-				const bool isDropDown = (tbi.fsStyle & BTNS_DROPDOWN) == BTNS_DROPDOWN && isIcon;
+				const bool isDropDown = ((tbi.fsStyle & BTNS_DROPDOWN) == BTNS_DROPDOWN) && isIcon;
 				if (isDropDown)
 				{
-					auto idx = ::SendMessage(lptbcd->nmcd.hdr.hwndFrom, TB_COMMANDTOINDEX, lptbcd->nmcd.dwItemSpec, 0);
+					const auto idx = ::SendMessage(lptbcd->nmcd.hdr.hwndFrom, TB_COMMANDTOINDEX, lptbcd->nmcd.dwItemSpec, 0);
 					::SendMessage(lptbcd->nmcd.hdr.hwndFrom, TB_GETITEMDROPDOWNRECT, static_cast<WPARAM>(idx), reinterpret_cast<LPARAM>(&rcDrop));
 
 					rcItem.right = rcDrop.left;
@@ -4520,7 +4534,7 @@ namespace DarkMode
 				auto holdFont = static_cast<HFONT>(::SelectObject(lptbcd->nmcd.hdc, hFont));
 
 				RECT rcArrow{};
-				auto idx = ::SendMessage(lptbcd->nmcd.hdr.hwndFrom, TB_COMMANDTOINDEX, lptbcd->nmcd.dwItemSpec, 0);
+				const auto idx = ::SendMessage(lptbcd->nmcd.hdr.hwndFrom, TB_COMMANDTOINDEX, lptbcd->nmcd.dwItemSpec, 0);
 				::SendMessage(lptbcd->nmcd.hdr.hwndFrom, TB_GETITEMDROPDOWNRECT, static_cast<WPARAM>(idx), reinterpret_cast<LPARAM>(&rcArrow));
 				rcArrow.left += 1;
 				rcArrow.bottom -= 3;
@@ -4541,7 +4555,7 @@ namespace DarkMode
 
 	static void drawListviewItem(LPNMLVCUSTOMDRAW& lplvcd, bool isReport, bool hasGridlines)
 	{
-		HWND& hList = lplvcd->nmcd.hdr.hwndFrom;
+		const auto& hList = lplvcd->nmcd.hdr.hwndFrom;
 		const bool isSelected = ListView_GetItemState(hList, lplvcd->nmcd.dwItemSpec, LVIS_SELECTED) == LVIS_SELECTED;
 		const bool isFocused = ListView_GetItemState(hList, lplvcd->nmcd.dwItemSpec, LVIS_FOCUSED) == LVIS_FOCUSED;
 		const bool isHot = (lplvcd->nmcd.uItemState & CDIS_HOT) == CDIS_HOT;
@@ -4571,8 +4585,8 @@ namespace DarkMode
 				}
 				else
 				{
-					const auto hHeader = ListView_GetHeader(hList);
-					const auto nCol = Header_GetItemCount(hHeader);
+					HWND hHeader = ListView_GetHeader(hList);
+					const int nCol = Header_GetItemCount(hHeader);
 					const LONG paddingLeft = DarkMode::isThemeDark() ? 1 : 0;
 					const LONG paddingRight = DarkMode::isThemeDark() ? 2 : 1;
 
@@ -4693,9 +4707,8 @@ namespace DarkMode
 			{
 				if (DarkMode::isEnabled())
 				{
-					RECT rcFrame = lptvcd->nmcd.rc;
-					rcFrame.left -= 1;
-					rcFrame.right += 1;
+					RECT rcFrame{ lptvcd->nmcd.rc };
+					::InflateRect(&rcFrame, 1, 0);
 
 					if ((lptvcd->nmcd.uItemState & CDIS_HOT) == CDIS_HOT)
 					{
@@ -4934,7 +4947,7 @@ namespace DarkMode
 		rcAnnoyingLine.top--;
 
 
-		auto hdc = ::GetWindowDC(hWnd);
+		HDC hdc = ::GetWindowDC(hWnd);
 		::FillRect(hdc, &rcAnnoyingLine, DarkMode::getDlgBackgroundBrush());
 		::ReleaseDC(hWnd, hdc);
 	}
@@ -5194,7 +5207,7 @@ namespace DarkMode
 		constexpr DWORD win11Mica = 22621;
 		if (DarkMode::getWindowsBuildNumber() >= win10Build2004)
 		{
-			BOOL useDark = DarkMode::isExperimentalActive() ? TRUE : FALSE;
+			const BOOL useDark = DarkMode::isExperimentalActive() ? TRUE : FALSE;
 			::DwmSetWindowAttribute(hWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &useDark, sizeof(useDark));
 
 			if (win11Features && DarkMode::isWindows11())
@@ -5302,6 +5315,76 @@ namespace DarkMode
 	void setDarkListView(HWND hWnd)
 	{
 		DarkMode::setDarkThemeExperimental(hWnd, L"Explorer");
+	}
+
+	void setDarkListviewCheckboxes(HWND hWnd)
+	{
+		if (!DarkMode::isWindows11())
+		{
+			return;
+		}
+
+		const auto lvExStyle = ListView_GetExtendedListViewStyle(hWnd);
+		if ((lvExStyle & LVS_EX_CHECKBOXES) != LVS_EX_CHECKBOXES)
+		{
+			return;
+		}
+
+		HDC hdc = ::GetDC(nullptr);
+
+		HTHEME hTheme = ::OpenThemeData(nullptr, DarkMode::isExperimentalActive() ? L"DarkMode_Explorer::Button" : VSCLASS_BUTTON);
+
+		SIZE szBox{};
+		::GetThemePartSize(hTheme, hdc, BP_CHECKBOX, CBS_UNCHECKEDNORMAL, nullptr, TS_DRAW, &szBox);
+
+		RECT rcBox{ 0, 0, szBox.cx, szBox.cy };
+
+		auto hImgList = ListView_GetImageList(hWnd, LVSIL_STATE);
+		if (hImgList == nullptr)
+		{
+			::CloseThemeData(hTheme);
+			::ReleaseDC(nullptr, hdc);
+			return;
+		}
+		::ImageList_RemoveAll(hImgList);
+
+		HDC hBoxDC = ::CreateCompatibleDC(hdc);
+		HBITMAP hBoxBmp = ::CreateCompatibleBitmap(hdc, szBox.cx, szBox.cy);
+		HBITMAP hMaskBmp = ::CreateCompatibleBitmap(hdc, szBox.cx, szBox.cy);
+
+		auto holdBmp = static_cast<HBITMAP>(::SelectObject(hBoxDC, hBoxBmp));
+		::DrawThemeBackground(hTheme, hBoxDC, BP_CHECKBOX, CBS_UNCHECKEDNORMAL, &rcBox, nullptr);
+
+		ICONINFO ii{};
+		ii.fIcon = TRUE;
+		ii.hbmColor = hBoxBmp;
+		ii.hbmMask = hMaskBmp;
+
+		HICON hIcon = ::CreateIconIndirect(&ii);
+		if (hIcon != nullptr)
+		{
+			::ImageList_AddIcon(hImgList, hIcon);
+			::DestroyIcon(hIcon);
+			hIcon = nullptr;
+		}
+
+		::DrawThemeBackground(hTheme, hBoxDC, BP_CHECKBOX, CBS_CHECKEDNORMAL, &rcBox, nullptr);
+		ii.hbmColor = hBoxBmp;
+
+		hIcon = ::CreateIconIndirect(&ii);
+		if (hIcon != nullptr)
+		{
+			::ImageList_AddIcon(hImgList, hIcon);
+			::DestroyIcon(hIcon);
+			hIcon = nullptr;
+		}
+
+		::SelectObject(hBoxDC, holdBmp);
+		::DeleteObject(hMaskBmp);
+		::DeleteObject(hBoxBmp);
+		::DeleteDC(hBoxDC);
+		::CloseThemeData(hTheme);
+		::ReleaseDC(nullptr, hdc);
 	}
 
 	void setDarkThemeExperimental(HWND hWnd, const wchar_t* themeClassName)

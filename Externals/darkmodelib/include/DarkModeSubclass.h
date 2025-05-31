@@ -292,6 +292,7 @@ namespace DarkMode
 	void setDarkLineAbovePanelToolbar(HWND hWnd);
 	void setDarkHeader(HWND hWnd);
 	void setDarkListView(HWND hWnd);
+	void setDarkListviewCheckboxes(HWND hWnd);
 	void setDarkThemeExperimental(HWND hWnd, const wchar_t* themeClassName = L"Explorer");
 	void setDarkRichEdit(HWND hWnd);
 
